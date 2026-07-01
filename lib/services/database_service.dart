@@ -2,6 +2,7 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../models/employee.dart';
+import '../models/attendance.dart';
 
 class DatabaseService {
   DatabaseService._();
@@ -21,24 +22,30 @@ class DatabaseService {
 
     return openDatabase(
       join(dbPath, 'facework.db'),
-      version: 1,
+      version: 2,
       onCreate: (db, version) async {
         await db.execute('''
-          CREATE TABLE employees(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            faceData TEXT NOT NULL
-          )
-        ''');
+CREATE TABLE employees(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  faceData TEXT NOT NULL,
+  faceEmbedding TEXT
+)
+''');
 
         await db.execute('''
-          CREATE TABLE attendance(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            employeeId INTEGER,
-            type TEXT,
-            dateTime TEXT
-          )
-        ''');
+CREATE TABLE attendance(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  employeeId INTEGER NOT NULL,
+  type TEXT NOT NULL,
+  dateTime TEXT NOT NULL
+)
+''');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute('ALTER TABLE employees ADD COLUMN faceEmbedding TEXT');
+        }
       },
     );
   }
@@ -55,28 +62,20 @@ class DatabaseService {
 
     return result.map((e) => Employee.fromMap(e)).toList();
   }
-    Future<int> insertAttendance({
-    required int employeeId,
-    required String type,
-  }) async {
-    final db = await database;
 
-    return db.insert(
-      'attendance',
-      {
-        'employeeId': employeeId,
-        'type': type,
-        'dateTime': DateTime.now().toIso8601String(),
-      },
-    );
+  Future<int> insertAttendance(Attendance attendance) async {
+    final db = await database;
+    return db.insert('attendance', attendance.toMap());
   }
 
-  Future<List<Map<String, dynamic>>> getAttendance() async {
+  Future<List<Attendance>> getAttendance() async {
     final db = await database;
 
-    return db.query(
+    final result = await db.query(
       'attendance',
       orderBy: 'dateTime DESC',
     );
+
+    return result.map((e) => Attendance.fromMap(e)).toList();
   }
 }
